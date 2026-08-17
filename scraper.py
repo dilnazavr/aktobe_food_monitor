@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Скрапер госзакупок СЗПТ по Актобе.
-Берёт данные прямо со страницы поиска (количество + сумма → цена за ед.).
+Улучшенная версия: больше ключевых слов + мягче фильтр статуса.
 """
 
 import re
@@ -40,17 +40,14 @@ def clean_number(text: str) -> Optional[float]:
         return None
 
 
-def is_active_status(status: str) -> bool:
+def is_interesting_status(status: str) -> bool:
     if not status:
         return False
     s = status.lower()
-    active_markers = ["опубликован", "прием заявок", "приём заявок", "рассмотрение"]
-    finished_markers = ["завершено", "завершен", "состоялась", "не состоялась", "не состоялся", "отменено"]
-    if any(m in s for m in finished_markers):
+    skip = ["отменено", "отменен"]
+    if any(m in s for m in skip):
         return False
-    if any(m in s for m in active_markers):
-        return True
-    return False
+    return True
 
 
 def find_product_match(text: str) -> Optional[str]:
@@ -66,90 +63,93 @@ def find_product_match(text: str) -> Optional[str]:
 
 def search_and_parse(product_key: str, threshold: float) -> List[Dict]:
     keywords = SEARCH_KEYWORDS.get(product_key, [product_key])
-    search_word = keywords[0]
-
-    url = (
-        f"https://goszakup.gov.kz/ru/search/lots"
-        f"?filter%5Bname%5D={quote(search_word)}"
-        f"&filter%5Bkato%5D={KATO_AKTOBE}"
-        f"&count_record=40"
-    )
-
-    try:
-        resp = requests.get(url, headers=HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.content, "lxml")
-    except Exception as e:
-        logger.warning(f"Ошибка поиска '{search_word}': {e}")
-        return []
+    search_terms = keywords[:2]
 
     results = []
     seen = set()
 
-    for tr in soup.find_all("tr"):
-        a = tr.select_one('a[href*="/ru/announce/index/"]')
-        if not a:
+    for search_word in search_terms:
+        url = (
+            f"https://goszakup.gov.kz/ru/search/lots"
+            f"?filter%5Bname%5D={quote(search_word)}"
+            f"&filter%5Bkato%5D={KATO_AKTOBE}"
+            f"&count_record=50"
+        )
+
+        try:
+            resp = requests.get(url, headers=HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.content, "lxml")
+        except Exception as e:
+            logger.warning(f"Ошибка поиска '{search_word}': {e}")
             continue
 
-        href = a.get("href", "")
-        full_url = "https://goszakup.gov.kz" + href.split("?")[0] + "?tab=lots"
-        if full_url in seen:
-            continue
-        seen.add(full_url)
+        for tr in soup.find_all("tr"):
+            a = tr.select_one('a[href*="/ru/announce/index/"]')
+            if not a:
+                continue
 
-        cells = [td.get_text(" ", strip=True) for td in tr.find_all("td")]
-        if len(cells) < 7:
-            continue
+            href = a.get("href", "")
+            full_url = "https://goszakup.gov.kz" + href.split("?")[0] + "?tab=lots"
+            if full_url in seen:
+                continue
+            seen.add(full_url)
 
-        lot_id = cells[0]
-        announce_info = cells[1]
-        lot_name = cells[2]
-        qty = clean_number(cells[3])
-        total_sum = clean_number(cells[4])
-        method = cells[5]
-        status = cells[6]
+            cells = [td.get_text(" ", strip=True) for td in tr.find_all("td")]
+            if len(cells) < 7:
+                continue
 
-        if not qty or not total_sum or qty <= 0:
-            continue
+            lot_id = cells[0]
+            announce_info = cells[1]
+            lot_name = cells[2]
+            qty = clean_number(cells[3])
+            total_sum = clean_number(cells[4])
+            method = cells[5]
+            status = cells[6]
 
-        price_per_unit = total_sum / qty
+            if not qty or not total_sum or qty <= 0:
+                continue
 
-        if not is_active_status(status):
-            continue
+            price_per_unit = total_sum / qty
 
-        matched = find_product_match(lot_name + " " + announce_info)
-        use_product = matched if matched else product_key
+            if not is_interesting_status(status):
+                continue
 
-        ref = REFERENCE_PRICES.get(use_product)
-        if not ref:
-            continue
+            matched = find_product_match(lot_name + " " + announce_info)
+            use_product = matched if matched else product_key
 
-        over_percent = ((price_per_unit - ref) / ref) * 100
+            ref = REFERENCE_PRICES.get(use_product)
+            if not ref:
+                continue
 
-        if over_percent < threshold:
-            continue
+            over_percent = ((price_per_unit - ref) / ref) * 100
 
-        if price_per_unit > ref * 15:
-            continue
+            if over_percent < threshold:
+                continue
 
-        title = (lot_name or announce_info).replace("История", "").strip()
+            if price_per_unit > ref * 12:
+                continue
 
-        results.append({
-            "product": use_product,
-            "ref_price": ref,
-            "lot_price": round(price_per_unit, 2),
-            "over_percent": round(over_percent, 1),
-            "qty": qty,
-            "total_sum": total_sum,
-            "title": title[:160],
-            "customer": announce_info[:200],
-            "status": status,
-            "method": method,
-            "url": full_url,
-            "lot_id": lot_id,
-        })
+            title = (lot_name or announce_info).replace("История", "").strip()
 
-        if len(results) >= MAX_LOTS_PER_PRODUCT:
+            results.append({
+                "product": use_product,
+                "ref_price": ref,
+                "lot_price": round(price_per_unit, 2),
+                "over_percent": round(over_percent, 1),
+                "qty": qty,
+                "total_sum": total_sum,
+                "title": title[:160],
+                "customer": announce_info[:200],
+                "status": status,
+                "method": method,
+                "url": full_url,
+                "lot_id": lot_id,
+            })
+
+        time.sleep(REQUEST_DELAY * 0.7)
+
+        if len(results) >= MAX_LOTS_PER_PRODUCT * 2:
             break
 
     return results
@@ -160,11 +160,7 @@ def run_monitor(products: Optional[List[str]] = None, threshold: float = None) -
         threshold = THRESHOLD_PERCENT
 
     if products is None:
-        products = [
-            "молоко", "яйца", "хлеб пшеничный", "рис шлифованный",
-            "крупа гречневая", "картофель", "масло подсолнечное",
-            "сахар", "куры", "мясо кур", "творог", "сметана",
-        ]
+        products = list(REFERENCE_PRICES.keys())
 
     all_results = []
     seen_urls = set()
@@ -172,7 +168,6 @@ def run_monitor(products: Optional[List[str]] = None, threshold: float = None) -
     for product in products:
         logger.info(f"Проверяем: {product} (порог +{threshold}%)")
         found = search_and_parse(product, threshold)
-        time.sleep(REQUEST_DELAY)
 
         for item in found:
             if item["url"] in seen_urls:
@@ -184,16 +179,7 @@ def run_monitor(products: Optional[List[str]] = None, threshold: float = None) -
                 f"(эталон {item['ref_price']}) | {item['title'][:55]}"
             )
 
+        time.sleep(REQUEST_DELAY)
+
     all_results.sort(key=lambda x: x["over_percent"], reverse=True)
     return all_results
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-    print("Запуск мониторинга СЗПТ по Актобе...\n")
-    suspicious = run_monitor()
-    print(f"\nНайдено подозрительных лотов: {len(suspicious)}")
-    for item in suspicious:
-        print(f"+{item['over_percent']}% | {item['product']} | {item['lot_price']} тг (эталон {item['ref_price']})")
-        print(f"   {item['title'][:80]}")
-        print(f"   {item['status']} | {item['url']}\n")
