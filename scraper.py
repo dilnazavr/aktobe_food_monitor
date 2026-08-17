@@ -64,7 +64,7 @@ def find_product_match(text: str) -> Optional[str]:
     return None
 
 
-def search_and_parse(product_key: str) -> List[Dict]:
+def search_and_parse(product_key: str, threshold: float) -> List[Dict]:
     keywords = SEARCH_KEYWORDS.get(product_key, [product_key])
     search_word = keywords[0]
 
@@ -126,11 +126,13 @@ def search_and_parse(product_key: str) -> List[Dict]:
 
         over_percent = ((price_per_unit - ref) / ref) * 100
 
-        if over_percent < THRESHOLD_PERCENT:
+        if over_percent < threshold:
             continue
 
         if price_per_unit > ref * 15:
             continue
+
+        title = (lot_name or announce_info).replace("История", "").strip()
 
         results.append({
             "product": use_product,
@@ -139,7 +141,7 @@ def search_and_parse(product_key: str) -> List[Dict]:
             "over_percent": round(over_percent, 1),
             "qty": qty,
             "total_sum": total_sum,
-            "title": ( (lot_name or announce_info).replace("История", "").strip() )[:160],
+            "title": title[:160],
             "customer": announce_info[:200],
             "status": status,
             "method": method,
@@ -153,7 +155,10 @@ def search_and_parse(product_key: str) -> List[Dict]:
     return results
 
 
-def run_monitor(products: Optional[List[str]] = None) -> List[Dict]:
+def run_monitor(products: Optional[List[str]] = None, threshold: float = None) -> List[Dict]:
+    if threshold is None:
+        threshold = THRESHOLD_PERCENT
+
     if products is None:
         products = [
             "молоко", "яйца", "хлеб пшеничный", "рис шлифованный",
@@ -165,8 +170,8 @@ def run_monitor(products: Optional[List[str]] = None) -> List[Dict]:
     seen_urls = set()
 
     for product in products:
-        logger.info(f"Проверяем: {product}")
-        found = search_and_parse(product)
+        logger.info(f"Проверяем: {product} (порог +{threshold}%)")
+        found = search_and_parse(product, threshold)
         time.sleep(REQUEST_DELAY)
 
         for item in found:

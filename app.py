@@ -4,9 +4,7 @@ Flask-сайт мониторинга завышенных цен на СЗПТ 
 """
 
 import os
-import json
 import threading
-import time
 from datetime import datetime
 from flask import Flask, render_template, jsonify, request
 
@@ -15,24 +13,26 @@ from scraper import run_monitor
 
 app = Flask(__name__)
 
-# Простое хранилище результатов в памяти
 CACHE = {
     "results": [],
     "last_update": None,
     "is_running": False,
     "log": [],
+    "threshold": THRESHOLD_PERCENT,
 }
 
 
-def background_scan(products=None):
+def background_scan(products=None, threshold=None):
     """Запускает скан в фоне."""
     CACHE["is_running"] = True
     CACHE["log"] = ["Сканирование запущено..."]
     try:
-        results = run_monitor(products)
+        thr = threshold if threshold is not None else CACHE.get("threshold", THRESHOLD_PERCENT)
+        CACHE["threshold"] = thr
+        results = run_monitor(products, threshold=thr)
         CACHE["results"] = results
         CACHE["last_update"] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-        CACHE["log"].append(f"Готово. Найдено подозрительных лотов: {len(results)}")
+        CACHE["log"].append(f"Готово. Найдено подозрительных лотов: {len(results)} (порог +{thr}%)")
     except Exception as e:
         CACHE["log"].append(f"Ошибка: {str(e)}")
     finally:
@@ -44,7 +44,7 @@ def index():
     return render_template(
         "index.html",
         products=REFERENCE_PRICES,
-        threshold=THRESHOLD_PERCENT,
+        threshold=CACHE.get("threshold", THRESHOLD_PERCENT),
         results=CACHE["results"],
         last_update=CACHE["last_update"],
         is_running=CACHE["is_running"],
@@ -57,12 +57,29 @@ def api_scan():
         return jsonify({"ok": False, "msg": "Сканирование уже идёт"})
 
     data = request.get_json(silent=True) or {}
-    products = data.get("products")  # список или None
+    products = data.get("products")
+    threshold = data.get("threshold")
 
-    thread = threading.Thread(target=background_scan, args=(products,), daemon=True)
+    try:
+        if threshold is not None:
+            threshold = float(threshold)
+            if threshold < 0:
+                threshold = 0
+            if threshold > 500:
+                threshold = 500
+        else:
+            threshold = CACHE.get("threshold", THRESHOLD_PERCENT)
+    except (TypeError, ValueError):
+        threshold = CACHE.get("threshold", THRESHOLD_PERCENT)
+
+    thread = threading.Thread(
+        target=background_scan,
+        args=(products, threshold),
+        daemon=True
+    )
     thread.start()
 
-    return jsonify({"ok": True, "msg": "Сканирование запущено"})
+    return jsonify({"ok": True, "msg": f"Сканирование запущено (порог +{threshold}%)"})
 
 
 @app.route("/api/status")
@@ -73,6 +90,7 @@ def api_status():
         "count": len(CACHE["results"]),
         "log": CACHE["log"][-8:],
         "results": CACHE["results"],
+        "threshold": CACHE.get("threshold", THRESHOLD_PERCENT),
     })
 
 
@@ -81,6 +99,7 @@ def api_results():
     return jsonify({
         "results": CACHE["results"],
         "last_update": CACHE["last_update"],
+        "threshold": CACHE.get("threshold", THRESHOLD_PERCENT),
     })
 
 

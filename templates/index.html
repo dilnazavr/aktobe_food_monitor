@@ -56,6 +56,41 @@
             color: var(--text);
             border: 1px solid var(--border);
         }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+        }
+        .threshold-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 8px 14px;
+        }
+        .threshold-box label {
+            color: var(--muted);
+            font-size: 0.9rem;
+            white-space: nowrap;
+        }
+        .threshold-box input {
+            width: 70px;
+            background: #0f172a;
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-align: center;
+        }
+        .threshold-box input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -145,6 +180,7 @@
         @media (max-width: 600px) {
             h1 { font-size: 1.3rem; }
             th, td { padding: 10px 8px; font-size: 0.85rem; }
+            .controls { width: 100%; }
         }
     </style>
 </head>
@@ -155,16 +191,20 @@
                 <h1>Монитор <span>СЗПТ</span> — Актобе</h1>
                 <p class="subtitle">Поиск завышенных цен на продукты питания в госзакупках</p>
             </div>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <div class="controls">
+                <div class="threshold-box">
+                    <label for="thresholdInput">Порог %</label>
+                    <input type="number" id="thresholdInput" value="{{ threshold }}" min="0" max="500" step="5">
+                </div>
                 <button class="btn" id="scanBtn" onclick="startScan()">Запустить проверку</button>
-                <button class="btn btn-secondary" onclick="location.reload()">Обновить страницу</button>
+                <button class="btn btn-secondary" onclick="location.reload()">Обновить</button>
             </div>
         </header>
 
         <div class="stats">
             <div class="stat-card">
-                <div class="label">Порог превышения</div>
-                <div class="value">+{{ threshold }}%</div>
+                <div class="label">Текущий порог</div>
+                <div class="value" id="thresholdValue">+{{ threshold }}%</div>
             </div>
             <div class="stat-card danger">
                 <div class="label">Подозрительных лотов</div>
@@ -188,7 +228,7 @@
             {% if is_running %}
                 Сканирование запущено. Это может занять 1–3 минуты...
             {% else %}
-                Нажмите «Запустить проверку», чтобы найти подозрительные закупки по Актобе.
+                Укажите порог превышения цены и нажмите «Запустить проверку».
             {% endif %}
         </div>
 
@@ -226,7 +266,7 @@
                             <td colspan="6">
                                 <div class="empty">
                                     <h3>Пока ничего нет</h3>
-                                    <p>Запустите проверку — скрипт пройдётся по актуальным закупкам Актобе</p>
+                                    <p>Установите порог и запустите проверку</p>
                                 </div>
                             </td>
                         </tr>
@@ -246,25 +286,33 @@
         </div>
 
         <footer>
-            Данные берутся с goszakup.gov.kz · Только Актюбинская область · Без официального API<br>
-            Сделано для мониторинга завышенных цен на социально значимые продукты
+            Данные с goszakup.gov.kz · Только Актюбинская область · Без официального API<br>
+            Порог превышения можно менять самостоятельно
         </footer>
     </div>
 
     <script>
         async function startScan() {
             const btn = document.getElementById('scanBtn');
+            const input = document.getElementById('thresholdInput');
+            let threshold = parseFloat(input.value);
+
+            if (isNaN(threshold) || threshold < 0) {
+                alert('Введите корректный процент (например 30)');
+                return;
+            }
+
             btn.disabled = true;
             btn.textContent = 'Сканирование...';
-
             document.getElementById('statusText').textContent = 'Идёт сканирование...';
-            document.getElementById('logBox').textContent = 'Запуск... Подождите 1–3 минуты.';
+            document.getElementById('thresholdValue').textContent = '+' + threshold + '%';
+            document.getElementById('logBox').textContent = 'Запуск с порогом +' + threshold + '%... Подождите 1–3 минуты.';
 
             try {
                 const res = await fetch('/api/scan', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({})
+                    body: JSON.stringify({ threshold: threshold })
                 });
                 const data = await res.json();
                 if (!data.ok) {
@@ -289,8 +337,11 @@
             document.getElementById('countValue').textContent = data.count;
             document.getElementById('lastUpdate').textContent = data.last_update || '—';
             document.getElementById('logBox').textContent = (data.log || []).join('\n') || '—';
+            if (data.threshold !== undefined) {
+                document.getElementById('thresholdValue').textContent = '+' + data.threshold + '%';
+            }
 
-            if (data.results && data.results.length > 0) {
+            if (data.results && data.results.length >= 0) {
                 renderResults(data.results);
             }
 
@@ -305,7 +356,7 @@
         function renderResults(results) {
             const tbody = document.getElementById('resultsBody');
             if (!results.length) {
-                tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><h3>Подозрительных лотов не найдено</h3></div></td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><h3>Подозрительных лотов не найдено</h3><p>Попробуйте снизить порог</p></div></td></tr>`;
                 return;
             }
             tbody.innerHTML = results.map(r => `
@@ -324,10 +375,10 @@
             `).join('');
         }
 
-        // Если уже идёт сканирование при загрузке
-        {% if is_running %}
-        pollStatus();
-        {% endif %}
+        // Автозапуск опроса, если сканирование уже идёт
+        if (document.getElementById('statusText').textContent.includes('сканирование')) {
+            pollStatus();
+        }
     </script>
 </body>
 </html>
