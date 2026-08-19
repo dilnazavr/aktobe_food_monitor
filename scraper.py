@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Скрапер госзакупок СЗПТ по Актобе.
-Улучшенная версия: больше ключевых слов + мягче фильтр статуса.
+Поддержка фильтра по году + расширенный поиск.
 """
 
 import re
@@ -44,8 +44,7 @@ def is_interesting_status(status: str) -> bool:
     if not status:
         return False
     s = status.lower()
-    skip = ["отменено", "отменен"]
-    if any(m in s for m in skip):
+    if any(m in s for m in ["отменено", "отменен"]):
         return False
     return True
 
@@ -61,7 +60,7 @@ def find_product_match(text: str) -> Optional[str]:
     return None
 
 
-def search_and_parse(product_key: str, threshold: float) -> List[Dict]:
+def search_and_parse(product_key: str, threshold: float, year: Optional[int] = None) -> List[Dict]:
     keywords = SEARCH_KEYWORDS.get(product_key, [product_key])
     search_terms = keywords[:2]
 
@@ -75,6 +74,8 @@ def search_and_parse(product_key: str, threshold: float) -> List[Dict]:
             f"&filter%5Bkato%5D={KATO_AKTOBE}"
             f"&count_record=50"
         )
+        if year:
+            url += f"&filter%5Byear%5D={year}"
 
         try:
             resp = requests.get(url, headers=HEADERS, verify=False, timeout=REQUEST_TIMEOUT)
@@ -155,7 +156,11 @@ def search_and_parse(product_key: str, threshold: float) -> List[Dict]:
     return results
 
 
-def run_monitor(products: Optional[List[str]] = None, threshold: float = None) -> List[Dict]:
+def run_monitor(
+    products: Optional[List[str]] = None,
+    threshold: float = None,
+    year: Optional[int] = None,
+) -> List[Dict]:
     if threshold is None:
         threshold = THRESHOLD_PERCENT
 
@@ -166,8 +171,8 @@ def run_monitor(products: Optional[List[str]] = None, threshold: float = None) -
     seen_urls = set()
 
     for product in products:
-        logger.info(f"Проверяем: {product} (порог +{threshold}%)")
-        found = search_and_parse(product, threshold)
+        logger.info(f"Проверяем: {product} (порог +{threshold}%, год={year or 'все'})")
+        found = search_and_parse(product, threshold, year=year)
 
         for item in found:
             if item["url"] in seen_urls:

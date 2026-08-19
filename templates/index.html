@@ -14,11 +14,10 @@
             --accent: #38bdf8;
             --danger: #f87171;
             --warning: #fbbf24;
-            --success: #4ade80;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             background: var(--bg);
             color: var(--text);
             line-height: 1.5;
@@ -31,7 +30,7 @@
             justify-content: space-between;
             align-items: center;
             gap: 16px;
-            margin-bottom: 32px;
+            margin-bottom: 28px;
             padding-bottom: 20px;
             border-bottom: 1px solid var(--border);
         }
@@ -42,41 +41,49 @@
             background: var(--accent);
             color: #0f172a;
             border: none;
-            padding: 12px 22px;
+            padding: 12px 20px;
             border-radius: 10px;
             font-weight: 600;
             font-size: 0.95rem;
             cursor: pointer;
-            transition: all 0.2s;
         }
-        .btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn:hover { filter: brightness(1.1); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-secondary {
             background: transparent;
             color: var(--text);
             border: 1px solid var(--border);
         }
+        .btn-sort {
+            background: transparent;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .btn-sort:hover, .btn-sort.active {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
         .controls {
             display: flex;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 10px;
             align-items: center;
         }
-        .threshold-box {
+        .field-box {
             display: flex;
             align-items: center;
             gap: 8px;
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 10px;
-            padding: 8px 14px;
+            padding: 8px 12px;
         }
-        .threshold-box label {
-            color: var(--muted);
-            font-size: 0.9rem;
-            white-space: nowrap;
-        }
-        .threshold-box input {
+        .field-box label { color: var(--muted); font-size: 0.9rem; white-space: nowrap; }
+        .field-box input {
             width: 70px;
             background: #0f172a;
             border: 1px solid var(--border);
@@ -87,40 +94,40 @@
             font-weight: 600;
             text-align: center;
         }
-        .threshold-box input:focus {
-            outline: none;
-            border-color: var(--accent);
-        }
+        .field-box input:focus { outline: none; border-color: var(--accent); }
         .stats {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 16px;
-            margin-bottom: 28px;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
         }
         .stat-card {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 18px;
+            padding: 16px;
         }
         .stat-card .label { color: var(--muted); font-size: 0.85rem; }
-        .stat-card .value { font-size: 1.6rem; font-weight: 700; margin-top: 4px; }
+        .stat-card .value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
         .stat-card.danger .value { color: var(--danger); }
         .section-title {
             font-size: 1.15rem;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
+            justify-content: space-between;
         }
+        .sort-btns { display: flex; gap: 8px; flex-wrap: wrap; }
         .table-wrap {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: 12px;
-            overflow: hidden;
-            margin-bottom: 32px;
+            overflow-x: auto;
+            margin-bottom: 28px;
         }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; min-width: 700px; }
         th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
         th { background: #0f172a55; color: var(--muted); font-weight: 600; font-size: 0.85rem; }
         tr:last-child td { border-bottom: none; }
@@ -160,15 +167,11 @@
             font-family: monospace;
             font-size: 0.85rem;
             color: var(--muted);
-            max-height: 160px;
+            max-height: 140px;
             overflow-y: auto;
-            margin-bottom: 24px;
+            margin-bottom: 22px;
         }
-        .empty {
-            text-align: center;
-            padding: 48px 20px;
-            color: var(--muted);
-        }
+        .empty { text-align: center; padding: 48px 20px; color: var(--muted); }
         .empty h3 { margin-bottom: 8px; color: var(--text); }
         footer {
             text-align: center;
@@ -176,11 +179,6 @@
             font-size: 0.85rem;
             padding: 24px 0;
             border-top: 1px solid var(--border);
-        }
-        @media (max-width: 600px) {
-            h1 { font-size: 1.3rem; }
-            th, td { padding: 10px 8px; font-size: 0.85rem; }
-            .controls { width: 100%; }
         }
     </style>
 </head>
@@ -192,7 +190,11 @@
                 <p class="subtitle">Поиск завышенных цен на продукты питания в госзакупках</p>
             </div>
             <div class="controls">
-                <div class="threshold-box">
+                <div class="field-box">
+                    <label for="yearInput">Год</label>
+                    <input type="number" id="yearInput" value="{{ year }}" min="2018" max="2030" step="1">
+                </div>
+                <div class="field-box">
                     <label for="thresholdInput">Порог %</label>
                     <input type="number" id="thresholdInput" value="{{ threshold }}" min="0" max="500" step="5">
                 </div>
@@ -203,7 +205,11 @@
 
         <div class="stats">
             <div class="stat-card">
-                <div class="label">Текущий порог</div>
+                <div class="label">Год</div>
+                <div class="value" id="yearValue">{{ year }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Порог</div>
                 <div class="value" id="thresholdValue">+{{ threshold }}%</div>
             </div>
             <div class="stat-card danger">
@@ -211,14 +217,14 @@
                 <div class="value" id="countValue">{{ results|length }}</div>
             </div>
             <div class="stat-card">
-                <div class="label">Последнее обновление</div>
-                <div class="value" style="font-size:1.1rem" id="lastUpdate">
+                <div class="label">Обновление</div>
+                <div class="value" style="font-size:1.05rem" id="lastUpdate">
                     {% if last_update %}{{ last_update }}{% else %}—{% endif %}
                 </div>
             </div>
             <div class="stat-card">
                 <div class="label">Статус</div>
-                <div class="value" style="font-size:1.1rem" id="statusText">
+                <div class="value" style="font-size:1.05rem" id="statusText">
                     {% if is_running %}Идёт сканирование...{% else %}Ожидание{% endif %}
                 </div>
             </div>
@@ -226,13 +232,21 @@
 
         <div class="log-box" id="logBox">
             {% if is_running %}
-                Сканирование запущено. Это может занять 1–3 минуты...
+                Сканирование запущено...
             {% else %}
-                Укажите порог превышения цены и нажмите «Запустить проверку».
+                Укажите год и порог %, затем нажмите «Запустить проверку».
             {% endif %}
         </div>
 
-        <h2 class="section-title">Подозрительные закупки</h2>
+        <div class="section-title">
+            <span>Подозрительные закупки</span>
+            <div class="sort-btns">
+                <button class="btn-sort active" onclick="sortResults('percent')" id="sortPercent">% ↓</button>
+                <button class="btn-sort" onclick="sortResults('price')" id="sortPrice">Цена ↓</button>
+                <button class="btn-sort" onclick="sortResults('product')" id="sortProduct">Продукт</button>
+            </div>
+        </div>
+
         <div class="table-wrap">
             <table>
                 <thead>
@@ -242,6 +256,7 @@
                         <th>Цена в лоте</th>
                         <th>Превышение</th>
                         <th>Название</th>
+                        <th>Статус</th>
                         <th>Ссылка</th>
                     </tr>
                 </thead>
@@ -257,16 +272,17 @@
                                     +{{ r.over_percent }}%
                                 </span>
                             </td>
-                            <td style="max-width:280px">{{ r.title }}</td>
+                            <td style="max-width:260px">{{ r.title }}</td>
+                            <td style="font-size:0.85rem;color:#94a3b8">{{ r.status }}</td>
                             <td><a href="{{ r.url }}" target="_blank" rel="noopener">Открыть</a></td>
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="empty">
                                     <h3>Пока ничего нет</h3>
-                                    <p>Установите порог и запустите проверку</p>
+                                    <p>Укажите год (например 2026) и порог, затем запустите проверку</p>
                                 </div>
                             </td>
                         </tr>
@@ -275,7 +291,7 @@
             </table>
         </div>
 
-        <h2 class="section-title">Эталонные цены СЗПТ</h2>
+        <h2 class="section-title"><span>Эталонные цены СЗПТ</span></h2>
         <div class="products-grid">
             {% for name, price in products.items() %}
             <div class="product-chip">
@@ -286,97 +302,131 @@
         </div>
 
         <footer>
-            Данные с goszakup.gov.kz  </footer>
+            goszakup.gov.kz · Актюбинская область · Фильтр по году + порог % · Сортировка на сайте
+        </footer>
     </div>
 
-    <script>
-        async function startScan() {
-            const btn = document.getElementById('scanBtn');
-            const input = document.getElementById('thresholdInput');
-            let threshold = parseFloat(input.value);
+    <script id="initial-results" type="application/json">{{ results | tojson | safe if results else '[]' }}</script>
+<script>
+    let currentResults = [];
+    try {
+        const el = document.getElementById('initial-results');
+        if (el && el.textContent.trim()) {
+            currentResults = JSON.parse(el.textContent);
+        }
+    } catch (e) {}
 
-            if (isNaN(threshold) || threshold < 0) {
-                alert('Введите корректный процент (например 30)');
-                return;
-            }
+    async function startScan() {
+        const btn = document.getElementById('scanBtn');
+        const threshold = parseFloat(document.getElementById('thresholdInput').value);
+        const year = parseInt(document.getElementById('yearInput').value);
 
-            btn.disabled = true;
-            btn.textContent = 'Сканирование...';
-            document.getElementById('statusText').textContent = 'Идёт сканирование...';
-            document.getElementById('thresholdValue').textContent = '+' + threshold + '%';
-            document.getElementById('logBox').textContent = 'Запуск с порогом +' + threshold + '%... Подождите 1–3 минуты.';
+        if (isNaN(threshold) || threshold < 0) {
+            alert('Введите корректный порог %');
+            return;
+        }
+        if (isNaN(year) || year < 2018 || year > 2030) {
+            alert('Введите год, например 2026');
+            return;
+        }
 
-            try {
-                const res = await fetch('/api/scan', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ threshold: threshold })
-                });
-                const data = await res.json();
-                if (!data.ok) {
-                    alert(data.msg);
-                    btn.disabled = false;
-                    btn.textContent = 'Запустить проверку';
-                    return;
-                }
-                pollStatus();
-            } catch (e) {
-                alert('Ошибка: ' + e);
+        btn.disabled = true;
+        btn.textContent = 'Сканирование...';
+        document.getElementById('statusText').textContent = 'Идёт сканирование...';
+        document.getElementById('thresholdValue').textContent = '+' + threshold + '%';
+        document.getElementById('yearValue').textContent = year;
+        document.getElementById('logBox').textContent = 'Запуск: год ' + year + ', порог +' + threshold + '%...';
+
+        try {
+            const res = await fetch('/api/scan', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ threshold: threshold, year: year })
+            });
+            const data = await res.json();
+            if (!data.ok) {
+                alert(data.msg);
                 btn.disabled = false;
                 btn.textContent = 'Запустить проверку';
-            }
-        }
-
-        async function pollStatus() {
-            const res = await fetch('/api/status');
-            const data = await res.json();
-
-            document.getElementById('statusText').textContent = data.is_running ? 'Идёт сканирование...' : 'Готово';
-            document.getElementById('countValue').textContent = data.count;
-            document.getElementById('lastUpdate').textContent = data.last_update || '—';
-            document.getElementById('logBox').textContent = (data.log || []).join('\n') || '—';
-            if (data.threshold !== undefined) {
-                document.getElementById('thresholdValue').textContent = '+' + data.threshold + '%';
-            }
-
-            if (data.results && data.results.length >= 0) {
-                renderResults(data.results);
-            }
-
-            if (data.is_running) {
-                setTimeout(pollStatus, 3000);
-            } else {
-                document.getElementById('scanBtn').disabled = false;
-                document.getElementById('scanBtn').textContent = 'Запустить проверку';
-            }
-        }
-
-        function renderResults(results) {
-            const tbody = document.getElementById('resultsBody');
-            if (!results.length) {
-                tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><h3>Подозрительных лотов не найдено</h3><p>Попробуйте снизить порог</p></div></td></tr>`;
                 return;
             }
-            tbody.innerHTML = results.map(r => `
-                <tr>
-                    <td>${r.product}</td>
-                    <td>${r.ref_price} ₸</td>
-                    <td><strong>${r.lot_price} ₸</strong></td>
-                    <td>
-                        <span class="badge ${r.over_percent > 80 ? 'badge-danger' : 'badge-warning'}">
-                            +${r.over_percent}%
-                        </span>
-                    </td>
-                    <td style="max-width:280px">${r.title}</td>
-                    <td><a href="${r.url}" target="_blank" rel="noopener">Открыть</a></td>
-                </tr>
-            `).join('');
+            pollStatus();
+        } catch (e) {
+            alert('Ошибка: ' + e);
+            btn.disabled = false;
+            btn.textContent = 'Запустить проверку';
+        }
+    }
+
+    async function pollStatus() {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+
+        document.getElementById('statusText').textContent = data.is_running ? 'Идёт сканирование...' : 'Готово';
+        document.getElementById('countValue').textContent = data.count;
+        document.getElementById('lastUpdate').textContent = data.last_update || '—';
+        document.getElementById('logBox').textContent = (data.log || []).join('\n') || '—';
+        if (data.threshold !== undefined) {
+            document.getElementById('thresholdValue').textContent = '+' + data.threshold + '%';
+        }
+        if (data.year !== undefined) {
+            document.getElementById('yearValue').textContent = data.year;
         }
 
-        // Автозапуск опроса, если сканирование уже идёт
-        if (document.getElementById('statusText').textContent.includes('сканирование')) {
-            pollStatus();
+        if (data.results) {
+            currentResults = data.results;
+            renderResults(currentResults);
         }
-    </script>
+
+        if (data.is_running) {
+            setTimeout(pollStatus, 3000);
+        } else {
+            document.getElementById('scanBtn').disabled = false;
+            document.getElementById('scanBtn').textContent = 'Запустить проверку';
+        }
+    }
+
+    function sortResults(by) {
+        document.querySelectorAll('.btn-sort').forEach(b => b.classList.remove('active'));
+        if (by === 'percent') {
+            document.getElementById('sortPercent').classList.add('active');
+            currentResults.sort((a, b) => b.over_percent - a.over_percent);
+        } else if (by === 'price') {
+            document.getElementById('sortPrice').classList.add('active');
+            currentResults.sort((a, b) => b.lot_price - a.lot_price);
+        } else if (by === 'product') {
+            document.getElementById('sortProduct').classList.add('active');
+            currentResults.sort((a, b) => a.product.localeCompare(b.product, 'ru'));
+        }
+        renderResults(currentResults);
+    }
+
+    function renderResults(results) {
+        const tbody = document.getElementById('resultsBody');
+        if (!results || !results.length) {
+            tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><h3>Ничего не найдено</h3><p>Попробуйте другой год или снизить порог</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = results.map(r => `
+            <tr>
+                <td>${r.product}</td>
+                <td>${r.ref_price} ₸</td>
+                <td><strong>${r.lot_price} ₸</strong></td>
+                <td>
+                    <span class="badge ${r.over_percent > 80 ? 'badge-danger' : 'badge-warning'}">
+                        +${r.over_percent}%
+                    </span>
+                </td>
+                <td style="max-width:260px">${r.title}</td>
+                <td style="font-size:0.85rem;color:#94a3b8">${r.status || ''}</td>
+                <td><a href="${r.url}" target="_blank" rel="noopener">Открыть</a></td>
+            </tr>
+        `).join('');
+    }
+
+    if (document.getElementById('statusText').textContent.includes('сканирование')) {
+        pollStatus();
+    }
+</script>
 </body>
 </html>
